@@ -1,47 +1,61 @@
-// script.js
-(function () {
-  const courses = [...document.querySelectorAll('.course')];
-  const courseMap = new Map();
+document.addEventListener("DOMContentLoaded", () => {
+  const cursos = document.querySelectorAll(".course");
+  const estado = JSON.parse(localStorage.getItem("estadoCursos") || "{}");
 
-  // Restaurar cursos aprobados desde localStorage
-  const saved = JSON.parse(localStorage.getItem('mallaStates') || '{}');
+  cursos.forEach(curso => {
+    const id = curso.dataset.id;
+    const unlocks = curso.dataset.unlocks ? curso.dataset.unlocks.split(",") : [];
 
-  courses.forEach(el => {
-    const id = el.id;
-    const prereqList = (el.dataset.prereqs || '').split(',').map(s => s.trim()).filter(Boolean);
-    courseMap.set(id, { el, prereqList });
-    if (saved[id]) {
-      el.classList.add('approved');
+    // Estado inicial
+    if (estado[id] === "aprobado") {
+      curso.classList.add("approved");
+      curso.classList.remove("locked");
+    } else if (!curso.classList.contains("locked")) {
+      curso.classList.add("locked");
     }
   });
 
-  function updateLocks() {
-    courseMap.forEach(({ el, prereqList }) => {
-      if (el.classList.contains('approved')) {
-        el.classList.remove('locked');
-        el.setAttribute('aria-disabled', 'false');
-        return;
-      }
-      const met = prereqList.every(pr => document.getElementById(pr)?.classList.contains('approved'));
-      if (met) {
-        el.classList.remove('locked');
-        el.setAttribute('aria-disabled', 'false');
-      } else {
-        el.classList.add('locked');
-        el.setAttribute('aria-disabled', 'true');
+  const actualizarEstado = () => {
+    const estado = {};
+    cursos.forEach(curso => {
+      const id = curso.dataset.id;
+      if (id && curso.classList.contains("approved")) {
+        estado[id] = "aprobado";
       }
     });
-  }
+    localStorage.setItem("estadoCursos", JSON.stringify(estado));
+  };
 
-  updateLocks();
+  cursos.forEach(curso => {
+    curso.addEventListener("click", () => {
+      const id = curso.dataset.id;
+      const unlocks = curso.dataset.unlocks ? curso.dataset.unlocks.split(",") : [];
 
-  courses.forEach(el => {
-    el.addEventListener('click', () => {
-      if (el.classList.contains('locked') || el.classList.contains('approved')) return;
-      el.classList.add('approved');
-      saved[el.id] = true;
-      localStorage.setItem('mallaStates', JSON.stringify(saved));
-      updateLocks();
+      if (curso.classList.contains("locked")) return;
+
+      // Alternar aprobado
+      curso.classList.toggle("approved");
+
+      // Desbloquear dependencias si fue aprobado
+      if (curso.classList.contains("approved")) {
+        unlocks.forEach(dependienteId => {
+          const dependiente = document.querySelector(`.course[data-id="${dependienteId}"]`);
+          if (dependiente) {
+            dependiente.classList.remove("locked");
+          }
+        });
+      } else {
+        // Si se desaprueba, bloquear dependientes
+        unlocks.forEach(dependienteId => {
+          const dependiente = document.querySelector(`.course[data-id="${dependienteId}"]`);
+          if (dependiente && !estado[dependienteId]) {
+            dependiente.classList.add("locked");
+            dependiente.classList.remove("approved");
+          }
+        });
+      }
+
+      actualizarEstado();
     });
   });
-})();
+});
